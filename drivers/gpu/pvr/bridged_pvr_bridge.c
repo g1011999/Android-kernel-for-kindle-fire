@@ -1,26 +1,26 @@
 /**********************************************************************
  *
  * Copyright (C) Imagination Technologies Ltd. All rights reserved.
- *
+ * 
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
  * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful but, except
- * as otherwise stated in writing, without any warranty; without even the
- * implied warranty of merchantability or fitness for a particular purpose.
+ * 
+ * This program is distributed in the hope it will be useful but, except 
+ * as otherwise stated in writing, without any warranty; without even the 
+ * implied warranty of merchantability or fitness for a particular purpose. 
  * See the GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public License along with
  * this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- *
+ * 
  * The full GNU General Public License is included in this distribution in
  * the file called "COPYING".
  *
  * Contact Information:
  * Imagination Technologies Ltd. <gpl-support@imgtec.com>
- * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK
+ * Home Park Estate, Kings Langley, Herts, WD4 8LZ, UK 
  *
  ******************************************************************************/
 
@@ -68,7 +68,7 @@
 #endif
 
 
-#include "srvkm.h"
+#include "srvkm.h" 
 
 PVRSRV_BRIDGE_DISPATCH_TABLE_ENTRY g_BridgeDispatchTable[BRIDGE_DISPATCH_TABLE_ENTRY_COUNT];
 
@@ -147,7 +147,7 @@ PVRSRVAcquireDeviceDataBW(IMG_UINT32 ui32BridgeID,
         return 0;
     }
 
-
+    
         psAcquireDevInfoOUT->eError =
         PVRSRVAllocHandle(psPerProc->psHandleBase,
                           &psAcquireDevInfoOUT->hDevCookie,
@@ -175,7 +175,7 @@ PVRSRVCreateDeviceMemContextBW(IMG_UINT32 ui32BridgeID,
 
     PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_CREATE_DEVMEMCONTEXT);
 
-
+    
     NEW_HANDLE_BATCH_OR_ERROR(psCreateDevMemContextOUT->eError, psPerProc, PVRSRV_MAX_CLIENT_HEAPS + 1)
 
     psCreateDevMemContextOUT->eError =
@@ -206,7 +206,7 @@ PVRSRVCreateDeviceMemContextBW(IMG_UINT32 ui32BridgeID,
         return 0;
     }
 
-
+    
     if(bCreated)
     {
         PVRSRVAllocHandleNR(psPerProc->psHandleBase,
@@ -240,7 +240,7 @@ PVRSRVCreateDeviceMemContextBW(IMG_UINT32 ui32BridgeID,
         if(abSharedDeviceMemHeap[i])
 #endif
         {
-
+            
 #if defined (SUPPORT_SID_INTERFACE)
             PVRSRVAllocHandleNR(psPerProc->psHandleBase,
                               &hDevMemHeapExt,
@@ -257,7 +257,7 @@ PVRSRVCreateDeviceMemContextBW(IMG_UINT32 ui32BridgeID,
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
         else
         {
-
+            
             if(bCreated)
             {
 #if defined (SUPPORT_SID_INTERFACE)
@@ -442,7 +442,7 @@ PVRSRVGetDeviceMemHeapInfoBW(IMG_UINT32 ui32BridgeID,
 #if defined(PVR_SECURE_HANDLES) || defined (SUPPORT_SID_INTERFACE)
         else
         {
-
+            
             psGetDevMemHeapInfoOUT->eError =
                 PVRSRVFindHandle(psPerProc->psHandleBase,
                                  &hDevMemHeapExt,
@@ -822,7 +822,7 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 
     NEW_HANDLE_BATCH_OR_ERROR(psMapDevMemOUT->eError, psPerProc, 2)
 
-
+    
     psMapDevMemOUT->eError = PVRSRVLookupHandle(KERNEL_HANDLE_BASE,
                                                 (IMG_VOID**)&psSrcKernelMemInfo,
                                                 psMapDevMemIN->hKernelMemInfo,
@@ -832,7 +832,7 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
         return 0;
     }
 
-
+    
     psMapDevMemOUT->eError = PVRSRVLookupHandle(psPerProc->psHandleBase,
                                                 &hDstDevMemHeap,
                                                 psMapDevMemIN->hDstDevMemHeap,
@@ -847,7 +847,7 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
     {
         PVR_DPF((PVR_DBG_MESSAGE, "using the mem wrap workaround."));
 
-
+        
 
 
 
@@ -4669,11 +4669,13 @@ IMG_INT BridgedDispatchKM(PVRSRV_PER_PROCESS_DATA * psPerProc,
         psBridgeIn = ((ENV_DATA *)psSysData->pvEnvSpecificData)->pvBridgeData;
         psBridgeOut = (IMG_PVOID)((IMG_PBYTE)psBridgeIn + PVRSRV_MAX_BRIDGE_IN_SIZE);
 
-        
-#if defined(DEBUG)
-        PVR_ASSERT(psBridgePackageKM->ui32InBufferSize < PVRSRV_MAX_BRIDGE_IN_SIZE);
-        PVR_ASSERT(psBridgePackageKM->ui32OutBufferSize < PVRSRV_MAX_BRIDGE_OUT_SIZE);
-#endif
+
+		if((psBridgePackageKM->ui32InBufferSize > PVRSRV_MAX_BRIDGE_IN_SIZE) ||
+			(psBridgePackageKM->ui32OutBufferSize > PVRSRV_MAX_BRIDGE_OUT_SIZE))
+		{
+			goto return_fault;
+		}
+
 
         if(psBridgePackageKM->ui32InBufferSize > 0)
         {

@@ -111,7 +111,8 @@ enum omap_burst_size {
 enum omap_parallel_interface_mode {
 	OMAP_DSS_PARALLELMODE_BYPASS,		/* MIPI DPI */
 	OMAP_DSS_PARALLELMODE_RFBI,		/* MIPI DBI */
-	OMAP_DSS_PARALLELMODE_DSI,
+	OMAP_DSS_DSI_VIDEO_MODE,
+	OMAP_DSS_DSI_COMMAND_MODE,
 };
 
 enum dss_clock {
@@ -251,8 +252,18 @@ struct regulator *dss_get_vdds_sdi(void);
 struct regulator *dss_get_vdda_dac(void);
 int dss_opt_clock_enable(void);
 void dss_opt_clock_disable(void);
+#ifdef CONFIG_OMAP2_DSS_HDMI
 int hdmi_opt_clock_enable(void);
 void hdmi_opt_clock_disable(void);
+#else
+static inline int hdmi_opt_clock_enable(void)
+{
+	return 0;
+}
+static inline void hdmi_opt_clock_disable(void)
+{
+}
+#endif
 void save_all_ctx(void);
 void restore_all_ctx(void);
 
@@ -336,6 +347,8 @@ bool dss_get_mainclk_state(void);
 unsigned long dss_get_cache_req_pck(void);
 int dss_mainclk_enable(void);
 void dss_mainclk_disable(void);
+void dss_clk_lock(void);
+void dss_clk_unlock(void);
 
 /* SDI */
 #ifdef CONFIG_OMAP2_DSS_SDI
@@ -389,6 +402,7 @@ int dsi_calc_clock_rates(enum omap_channel channel,
 		struct dsi_clock_info *cinfo);
 void dsi_wait_pll_dispc_active(enum omap_dsi_index ix);
 void dsi_wait_pll_dsi_active(enum omap_dsi_index ix);
+void dsi_config_video_mode(struct omap_dss_device *dssdev);
 #else
 static inline int dsi_init(struct platform_device *pdev)
 {
@@ -461,10 +475,6 @@ void dispc_set_zorder(enum omap_plane plane,
 		enum omap_overlay_zorder zorder);
 void dispc_enable_zorder(enum omap_plane plane, bool enable);
 
-void dispc_enable_cpr(enum omap_channel channel, bool enable);
-void dispc_set_cpr_coef(enum omap_channel channel,
-		struct omap_dss_color_weight_coef *coefs);
-
 void dispc_set_plane_ba0(enum omap_plane plane, u32 paddr);
 void dispc_set_plane_ba1(enum omap_plane plane, u32 paddr);
 void dispc_enable_gamma_table(bool enable);
@@ -476,14 +486,6 @@ void dispc_set_plane_size(enum omap_plane plane, u16 width, u16 height);
 void dispc_set_channel_out(enum omap_plane plane,
 		enum omap_channel channel_out);
 
-int dispc_scaling_decision(u16 width, u16 height,
-		u16 out_width, u16 out_height,
-		enum omap_plane plane,
-		enum omap_color_mode color_mode,
-		enum omap_channel channel, u8 rotation,
-		u16 min_x_decim, u16 max_x_decim,
-		u16 min_y_decim, u16 max_y_decim,
-		u16 *x_decim, u16 *y_decim, bool *three_tap);
 int dispc_setup_plane(enum omap_plane plane,
 		u32 paddr, u16 screen_width,
 		u16 pos_x, u16 pos_y,
@@ -501,7 +503,6 @@ int dispc_setup_plane(enum omap_plane plane,
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
 void dispc_enable_digit_out(bool enable);
-void dispc_enable_channel(enum omap_channel channel, bool enable);
 bool dispc_is_channel_enabled(enum omap_channel channel);
 void dispc_enable_plane(enum omap_plane plane, bool enable);
 void dispc_enable_replication(enum omap_plane plane, bool enable);
@@ -526,6 +527,7 @@ void dispc_enable_trans_key(enum omap_channel ch, bool enable);
 void dispc_enable_alpha_blending(enum omap_channel ch, bool enable);
 bool dispc_trans_key_enabled(enum omap_channel ch);
 bool dispc_alpha_blending_enabled(enum omap_channel ch);
+void dispc_enable_pre_mult_alpha(enum omap_plane plane, bool enable);
 
 bool dispc_lcd_timings_ok(struct omap_video_timings *timings);
 void dispc_set_lcd_timings(enum omap_channel channel,
@@ -595,7 +597,7 @@ int hdmi_init(struct platform_device *pdev);
 void hdmi_exit(void);
 void hdmi_dump_regs(struct seq_file *s);
 int hdmi_init_display(struct omap_dss_device *display);
-extern bool hdmi_suspend;
+extern bool first_hpd, dirty;
 #endif
 
 #ifdef CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS

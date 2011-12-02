@@ -21,13 +21,25 @@ config PANEL_SHARP_LQ043T1DG01
         depends on OMAP2_DSS
         help
 
-          LCD Panel used in TIs OMAP3517 EVM boards
+          LCD Panel used in TI's OMAP3517 EVM boards
 
 config PANEL_PICO_DLP
         tristate "OMAP PICO DLP Panel"
         depends on OMAP2_DSS
         help
           LCD Panel used in TI's SDP4430 and EVM boards
+
+config PANEL_DP501
+        tristate "DisplayPort DP501 Panel"
+        depends on OMAP2_DSS
+        help
+          DisplayPort Panel used in TI's Blaze Tablet
+
+config PANEL_D2L
+        tristate "Toshiba D2L DSI Panel"
+        depends on OMAP2_DSS_DSI
+        help
+          Toshiba D2L DSI video mode panel.
 
 config PANEL_TAAL
         tristate "Taal DSI Panel"
@@ -66,6 +78,7 @@ config PANEL_ACX565AKM
 	help
 	  This is the LCD panel used on Nokia N900
 
+
 config PANEL_OTTER1
         tristate "LGD Panel"
         depends on OMAP2_DSS
@@ -77,4 +90,5 @@ config DEMO_HDMI
         depends on OMAP2_DSS
         help
           HDMI output used in KC1 DEMO
+
 endmenu

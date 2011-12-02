@@ -136,11 +136,7 @@ typedef struct _PVRSRV_SGXDEV_INFO_
 #if defined(SGX_FEATURE_OVERLAPPED_SPM)
 	PPVRSRV_KERNEL_MEM_INFO	psKernelTmpRgnHeaderMemInfo; 
 #endif
-#if defined(SGX_FEATURE_SPM_MODE_0)
-	PPVRSRV_KERNEL_MEM_INFO	psKernelTmpDPMStateMemInfo; 
-#endif
 
-	
 	IMG_UINT32				ui32ClientRefCount;
 
 	

@@ -33,7 +33,6 @@
 #include "buffer_manager.h"
 #include "sgxinfo.h"
 #include "sysconfig.h"
-#include "regpaths.h"
 #include "pdump_km.h"
 #include "mmu.h"
 #include "pvr_bridge.h"
@@ -323,7 +322,7 @@ IMG_EXPORT PVRSRV_ERROR SGXSubmitTransferKM(IMG_HANDLE hDevHandle, PVRSRV_TRANSF
 				}
 			}
 
-
+			
 			for (loop = 0; loop < (psKick->ui32NumSrcSync); loop++)
 			{
 				if (abSrcSyncEnable[loop])

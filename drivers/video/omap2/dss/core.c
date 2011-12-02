@@ -207,7 +207,7 @@ static int dss_get_clocks(void)
 		if (r)
 			goto err;
 
-		r = dss_get_clock(&core.dss2_fck, "dss_dss_clk");
+		r = dss_get_clock(&core.dss2_fck, "dss_sys_clk");
 		if (r)
 			goto err;
 
@@ -364,15 +364,16 @@ void dss_opt_clock_disable()
 		clk_disable(core.dss_96m_fck);
 }
 
+#ifdef CONFIG_OMAP2_DSS_HDMI
 int hdmi_opt_clock_enable()
 {
 	return clk_enable(core.dss_96m_fck);
 }
-
 void hdmi_opt_clock_disable()
 {
 	clk_disable(core.dss_96m_fck);
 }
+#endif
 
 static void dss_clk_disable_no_ctx(enum dss_clock clks)
 {

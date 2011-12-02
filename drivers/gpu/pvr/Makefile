@@ -29,7 +29,8 @@ ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr \
 	-DSGX_EARLYSUSPEND \
 	-DPVR_NO_OMAP_TIMER \
 	-DSUPPORT_SGX_LOW_LATENCY_SCHEDULING \
-	-DPVRSRV_MODNAME="\"pvrsrvkm"\"
+	-DPVRSRV_MODNAME="\"pvrsrvkm"\" \
+	-DSUPPORT_OMAP_TILER1
 
 ccflags-$(CONFIG_SGX540) +=  -Idrivers/gpu/pvr/omap4  -Idrivers/gpu/pvr/sgx \
 	-DSGX_CLK_CORE_DIV5 \
@@ -65,8 +66,7 @@ ccflags-$(CONFIG_SGX_540_BUILD_RELEASE) += \
 	-DPVR_BUILD_TYPE="\"release\"" \
 	-DRELEASE \
 	-DSUPPORT_ACTIVE_POWER_MANAGEMENT \
-	-DSUPPORT_HW_RECOVERY \
-	-DPVR_NO_FULL_CACHE_OPS
+	-DSUPPORT_HW_RECOVERY
 
 ccflags-$(CONFIG_SGX_540_BUILD_DEBUG) += \
 	-DPVR_BUILD_TYPE="\"debug\""  -DDEBUG \
@@ -77,11 +77,10 @@ ccflags-$(CONFIG_SGX_540_BUILD_DEBUG) += \
 	-DPVRSRV_USSE_EDM_STATUS_DEBUG \
 	-DPVRSRV_DUMP_MK_TRACE \
 	-DSUPPORT_ACTIVE_POWER_MANAGEMENT \
-	-DPVR_NO_FULL_CACHE_OPS \
 	-DSUPPORT_HW_RECOVERY \
 	-DDEBUG_LOG_PATH_TRUNCATE="\"eurasia_km\""
 
-ccflags-$(CONFIG_SGX_PDUMP) += -Idrivers/gpu/pvr/pdump \
+ccflags-$(CONFIG_SGX_PDUMP) += -Idrivers/gpu/pvr/dbgdrv \
 	-DPDUMP \
 	-DSUPPORT_DBGDRV_EVENT_OBJECTS
 
@@ -143,16 +142,17 @@ sgx_displayclass-y := \
 
 omaplfb-y := \
 	omaplfb/omaplfb_displayclass.o \
+	omaplfb/omaplfb-dev.o \
 	omaplfb/omaplfb-sysfs.o \
 	omaplfb/omaplfb_linux.o
 
 dbgdrv-$(CONFIG_SGX_PDUMP) := \
-	pdump/main.o \
-	pdump/dbgdriv.o \
-	pdump/ioctl.o \
-	pdump/handle.o \
-	pdump/hostfunc.o \
-	pdump/hotkey.o
+	dbgdrv/main.o \
+	dbgdrv/dbgdriv.o \
+	dbgdrv/ioctl.o \
+	dbgdrv/handle.o \
+	dbgdrv/hostfunc.o \
+	dbgdrv/hotkey.o
 
 obj-$(CONFIG_SGX540) := pvr_common.o sgx.o omaplfb.o pvr540.o
 obj-$(CONFIG_SGX530) := pvr_common.o sgx.o omaplfb.o pvr530.o

@@ -30,6 +30,7 @@
 #include "buffer_manager.h"
 #include "pdump_km.h"
 #include "pvr_bridge_km.h"
+#include "osfunc.h"
 
 static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 									IMG_HANDLE		hDevMemHeap,
@@ -585,6 +586,113 @@ static IMG_VOID freeWrapped(PVRSRV_KERNEL_MEM_INFO *psMemInfo)
 	}
 }
 
+
+#if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
+static
+PVRSRV_ERROR _PollUntilAtLeast(volatile IMG_UINT32* pui32WatchedValue,
+                               IMG_UINT32 ui32MinimumValue,
+                               IMG_UINT32 ui32Waitus,
+                               IMG_UINT32 ui32Tries)
+{
+	PVRSRV_ERROR eError;
+	IMG_INT32 iDiff;
+
+	for(;;)
+	{
+		SYS_DATA *psSysData = SysAcquireDataNoCheck();
+		iDiff = *pui32WatchedValue - ui32MinimumValue;
+
+		if (iDiff >= 0)
+		{
+			eError = PVRSRV_OK;
+			break;
+		}
+
+		if(!ui32Tries)
+		{
+			eError = PVRSRV_ERROR_TIMEOUT_POLLING_FOR_VALUE;
+			break;
+		}
+
+		ui32Tries--;
+
+		
+		if (psSysData->psGlobalEventObject)
+		{
+			IMG_HANDLE hOSEventKM;
+			if(psSysData->psGlobalEventObject)
+			{
+				eError = OSEventObjectOpenKM(psSysData->psGlobalEventObject, &hOSEventKM);
+				if (eError |= PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: OSEventObjectOpen failed"));
+					goto Exit;
+				}
+				eError = OSEventObjectWaitKM(hOSEventKM);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: PVRSRVEventObjectWait failed"));
+					goto Exit;
+				}
+				eError = OSEventObjectCloseKM(psSysData->psGlobalEventObject, hOSEventKM);
+				if (eError != PVRSRV_OK)
+				{
+					PVR_DPF((PVR_DBG_ERROR,
+								"_PollUntilAtLeast: OSEventObjectClose failed"));
+				}
+			}
+		}
+	}
+Exit:
+	return eError;
+}
+
+static PVRSRV_ERROR FlushKernelOps(PVRSRV_SYNC_DATA *psSyncData)
+{
+	PVRSRV_ERROR eError;
+
+	if(!psSyncData)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushKernelOps: invalid psSyncData"));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	
+
+
+
+
+
+
+
+
+	eError = _PollUntilAtLeast(&psSyncData->ui32ReadOpsComplete,
+                               psSyncData->ui32ReadOpsPending,
+                               MAX_HW_TIME_US/WAIT_TRY_COUNT,
+                               WAIT_TRY_COUNT);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushClientOps: Read ops pending timeout"));
+		PVR_DBG_BREAK; 
+		return eError;
+	}
+
+	eError = _PollUntilAtLeast(&psSyncData->ui32WriteOpsComplete,
+                               psSyncData->ui32WriteOpsPending,
+                               MAX_HW_TIME_US/WAIT_TRY_COUNT,
+                               WAIT_TRY_COUNT);
+	if (eError != PVRSRV_OK)
+	{
+		PVR_DPF((PVR_DBG_ERROR, "FlushClientOps: Write ops pending timeout"));
+		PVR_DBG_BREAK; 
+	}
+
+	return eError;
+}
+#endif 
+
 static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 										  IMG_UINT32	ui32Param,
 										  IMG_BOOL	bFromAllocator)
@@ -630,6 +738,15 @@ static PVRSRV_ERROR FreeMemCallBackCommon(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
 	
 	if (psMemInfo->ui32RefCount == 0)
 	{
+#if defined (PVRSRV_FLUSH_KERNEL_OPS_LAST_ONLY)
+		if (psMemInfo->psKernelSyncInfo)
+		{
+			if (psMemInfo->psKernelSyncInfo->ui32RefCount == 1)
+			{
+				FlushKernelOps(psMemInfo->psKernelSyncInfo->psSyncData);
+			}
+		}
+#endif
 		switch(psMemInfo->memType)
 		{
 			
@@ -667,7 +784,7 @@ static PVRSRV_ERROR FreeDeviceMemCallBack(IMG_PVOID  pvParam,
 										  IMG_BOOL   bDummy)
 {
 	PVRSRV_KERNEL_MEM_INFO	*psMemInfo = (PVRSRV_KERNEL_MEM_INFO *)pvParam;
-
+	
 	PVR_UNREFERENCED_PARAMETER(bDummy);
 
 	return FreeMemCallBackCommon(psMemInfo, ui32Param, IMG_TRUE);
@@ -861,7 +978,7 @@ static PVRSRV_ERROR UnwrapExtMemoryCallBack(IMG_PVOID  pvParam,
 											IMG_BOOL   bDummy)
 {
 	PVRSRV_KERNEL_MEM_INFO	*psMemInfo = (PVRSRV_KERNEL_MEM_INFO *)pvParam;
-
+	
 	PVR_UNREFERENCED_PARAMETER(bDummy);
 
 	return FreeMemCallBackCommon(psMemInfo, ui32Param, IMG_TRUE);

@@ -46,6 +46,8 @@
 #define DCS_RDDSDR		0x0f
 #define DCS_SLEEP_IN		0x10
 #define DCS_SLEEP_OUT		0x11
+#define DCS_PARTIAL_MODE_ON	0x12
+#define DCS_ALL_PIXEL_OFF	0x22
 #define DCS_DISPLAY_OFF		0x28
 #define DCS_DISPLAY_ON		0x29
 #define DCS_COLUMN_ADDR		0x2a
@@ -167,8 +169,6 @@ struct panel_config {
 
 	struct panel_regulator *regulators;
 	int num_regulators;
-	u32 width_in_mm;
-	u32 height_in_mm;
 };
 
 enum {
@@ -193,8 +193,6 @@ static struct panel_config panel_configs[] = {
 			.high		= 10,
 			.low		= 10,
 		},
-		.width_in_mm = 84,
-		.height_in_mm = 47,
 	},
        {
                 .name           = "taal2",
@@ -213,8 +211,6 @@ static struct panel_config panel_configs[] = {
                         .high           = 10,
                         .low            = 10,
                 },
-		.width_in_mm = 84,
-		.height_in_mm = 47,
         },
 };
 
@@ -544,13 +540,6 @@ static void taal_get_resolution(struct omap_dss_device *dssdev,
 	}
 }
 
-static void taal_get_dimension(struct omap_dss_device *dssdev,
-		u32 *width, u32 *height)
-{
-	*width = dssdev->panel.width_in_mm;
-	*height = dssdev->panel.height_in_mm;
-}
-
 static ssize_t taal_num_errors_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -759,8 +748,6 @@ static int taal_probe(struct omap_dss_device *dssdev)
 	dssdev->panel.config = OMAP_DSS_LCD_TFT;
 	dssdev->panel.timings = panel_config->timings;
 	dssdev->ctrl.pixel_size = 24;
-	dssdev->panel.width_in_mm = panel_config->width_in_mm;
-	dssdev->panel.height_in_mm = panel_config->height_in_mm;
 
 	td = kzalloc(sizeof(*td), GFP_KERNEL);
 	if (!td) {
@@ -926,8 +913,6 @@ static int taal_power_on(struct omap_dss_device *dssdev)
 		goto err0;
 	}
 
-	taal_hw_reset(dssdev);
-
 	omapdss_dsi_vc_enable_hs(ix, TCH, false);
 
 	r = taal_sleep_out(ix, td);
@@ -965,6 +950,10 @@ static int taal_power_on(struct omap_dss_device *dssdev)
 		if (r)
 			goto err;
 	}
+
+	r = taal_dcs_write_0(ix, DCS_ALL_PIXEL_OFF);
+	if (r)
+		goto err;
 
 	r = taal_dcs_write_0(ix, DCS_DISPLAY_ON);
 	if (r)
@@ -1248,7 +1237,10 @@ static int taal_update_locked(struct omap_dss_device *dssdev,
 
 	r = omap_dsi_prepare_update(dssdev, &x, &y, &w, &h, true);
 	if (r)
+		goto err;
 
+	r = taal_dcs_write_0(0, DCS_PARTIAL_MODE_ON);
+	if (r)
 		goto err;
 
 	r = taal_set_update_window(ix, x, y, w, h);
@@ -1742,7 +1734,6 @@ static struct omap_dss_driver taal_driver = {
 	.sync		= taal_sync,
 
 	.get_resolution	= taal_get_resolution,
-	.get_dimension = taal_get_dimension,
 	.get_recommended_bpp = omapdss_default_get_recommended_bpp,
 
 	.enable_te	= taal_enable_te,
@@ -1782,7 +1773,6 @@ static struct omap_dss_driver taal2_driver = {
 	.sync		= taal_sync,
 
 	.get_resolution	= taal_get_resolution,
-	.get_dimension = taal_get_dimension,
 	.get_recommended_bpp = omapdss_default_get_recommended_bpp,
 
 	.enable_te	= taal_enable_te,

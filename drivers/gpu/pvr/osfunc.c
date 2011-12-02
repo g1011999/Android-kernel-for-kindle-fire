@@ -24,11 +24,14 @@
  *
  ******************************************************************************/
 
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38))
 #ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
+#include <linux/config.h>
+#endif
 #endif
 
-#include <linux/version.h>
 #include <asm/io.h>
 #include <asm/page.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22))
@@ -80,8 +83,12 @@
 #if defined(PVR_LINUX_USING_WORKQUEUES) && !defined(CONFIG_PREEMPT)
 #error "A preemptible Linux kernel is required when using workqueues"
 #endif
-
+#if defined(EMULATOR)
+#define EVENT_OBJECT_TIMEOUT_MS		(2000)
+#else
 #define EVENT_OBJECT_TIMEOUT_MS		(100)
+#endif
+#define PVR_FULL_CACHE_OP_THRESHOLD	(0x7D000)
 
 #if !defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
 PVRSRV_ERROR OSAllocMem_Impl(IMG_UINT32 ui32Flags, IMG_UINT32 ui32Size, IMG_PVOID *ppvCpuVAddr, IMG_HANDLE *phBlockAlloc)
@@ -123,7 +130,7 @@ static inline int is_vmalloc_addr(const void *pvCpuVAddr)
 	return lAddr >= VMALLOC_START && lAddr < VMALLOC_END;
 }
 
-#endif
+#endif 
 
 #if !defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
 PVRSRV_ERROR OSFreeMem_Impl(IMG_UINT32 ui32Flags, IMG_UINT32 ui32Size, IMG_PVOID pvCpuVAddr, IMG_HANDLE hBlockAlloc)
@@ -1045,8 +1052,10 @@ IMG_BOOL OSIsResourceLocked (PVRSRV_RESOURCE *psResource, IMG_UINT32 ui32ID)
 
 
 #if !defined(SYS_CUSTOM_POWERLOCK_WRAP)
-PVRSRV_ERROR OSPowerLockWrap (IMG_VOID)
+PVRSRV_ERROR OSPowerLockWrap (IMG_BOOL bTryLock)
 {
+	PVR_UNREFERENCED_PARAMETER(bTryLock);
+
 	return PVRSRV_OK;
 }
 
@@ -1729,12 +1738,16 @@ PVRSRV_ERROR OSPCIResumeDev(PVRSRV_PCI_DEV_HANDLE hPVRPCI)
             return PVRSRV_ERROR_UNKNOWN_POWER_STATE;
     }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38))
+    pci_restore_state(psPVRPCI->psPCIDev);
+#else
     err = pci_restore_state(psPVRPCI->psPCIDev);
     if (err != 0)
     {
         PVR_DPF((PVR_DBG_ERROR, "OSPCIResumeDev: pci_restore_state failed (%d)", err));
         return PVRSRV_ERROR_PCI_CALL_FAILED;
     }
+#endif
 
     err = pci_enable_device(psPVRPCI->psPCIDev);
     if (err != 0)
@@ -2258,6 +2271,47 @@ static IMG_BOOL CPUVAddrToPFN(struct vm_area_struct *psVMArea, IMG_UINT32 ulCPUV
 #endif
 }
 
+#if defined(SUPPORT_OMAP_TILER1)
+static IMG_BOOL CPUAddrToTilerPhy(IMG_UINT32 vma, IMG_UINT32 *phyAddr)
+{
+    IMG_UINT32 tmpPhysAddr = 0;
+    pgd_t *pgd = NULL;
+    pmd_t *pmd = NULL;
+    pte_t *ptep = NULL, pte = 0x0;
+    IMG_BOOL bRet = IMG_FALSE;
+
+    pgd = pgd_offset(current->mm, vma);
+    if (!(pgd_none(*pgd) || pgd_bad(*pgd)))
+    {
+        pmd = pmd_offset(pgd, vma);
+        if (!(pmd_none(*pmd) || pmd_bad(*pmd)))
+        {
+            ptep = pte_offset_map(pmd, vma);
+            if (ptep)
+            {
+                pte = *ptep;
+                if (pte_present(pte))
+                {
+                    tmpPhysAddr = (pte & PAGE_MASK) |
+                        (~PAGE_MASK & vma);
+                    bRet = IMG_TRUE;
+                }
+            }
+        }
+    }
+    /* If the physAddr is not in the TILER physical range
+     * then we don't proceed. */
+    if ((tmpPhysAddr < 0x60000000) || (tmpPhysAddr > 0x7fffffff))
+    {
+        PVR_DPF((PVR_DBG_ERROR, "CPUAddrToTilerPhy: Not in tiler range"));
+        tmpPhysAddr = 0;
+        bRet = IMG_FALSE;
+    }
+    *phyAddr = tmpPhysAddr;
+    return bRet;
+}
+#endif /* SUPPORT_OMAP_TILER1 */
+
 PVRSRV_ERROR OSReleasePhysPageAddr(IMG_HANDLE hOSWrapMem)
 {
     sWrapMemInfo *psInfo = (sWrapMemInfo *)hOSWrapMem;
@@ -2522,6 +2576,18 @@ PVRSRV_ERROR OSAcquirePhysPageAddr(IMG_VOID *pvCPUVAddr,
 	}
 	if (psInfo->ppsPages[i] == NULL)
 	{
+#if defined(SUPPORT_OMAP_TILER1)
+            IMG_UINT32 tilerAddr;
+            /* This could be tiler memory.*/
+            if (CPUAddrToTilerPhy(ulAddr, &tilerAddr))
+            {
+                bHavePageStructs = IMG_TRUE;
+                psInfo->iNumPagesMapped++;
+                psInfo->psPhysAddr[i].uiAddr = tilerAddr;
+                psSysPAddr[i].uiAddr = tilerAddr;
+                continue;
+            }
+#endif /* SUPPORT_OMAP_TILER1 */
 
 	    bHaveNoPageStructs = IMG_TRUE;
 
@@ -2987,15 +3053,24 @@ IMG_BOOL OSFlushCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_UINT32 ui32Length)
 {
 	return CheckExecuteCacheOp(hOSMemHandle, pvRangeAddrStart, ui32Length,
-							   dmac_flush_range, outer_flush_range);
+			dmac_flush_range, outer_flush_range);
 }
 
 IMG_BOOL OSCleanCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_VOID *pvRangeAddrStart,
 								IMG_UINT32 ui32Length)
 {
-	return CheckExecuteCacheOp(hOSMemHandle, pvRangeAddrStart, ui32Length,
+	IMG_BOOL retval = IMG_TRUE;
+#if defined(CONFIG_OUTER_CACHE) && !defined(PVR_NO_FULL_CACHE_OPS)
+	if (ui32Length > PVR_FULL_CACHE_OP_THRESHOLD)
+		OSCleanCPUCacheKM();
+	else
+#endif
+	{
+		retval = CheckExecuteCacheOp(hOSMemHandle, pvRangeAddrStart, ui32Length,
 							   pvr_dmac_clean_range, outer_clean_range);
+	}
+	return retval;
 }
 
 IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
@@ -3026,7 +3101,7 @@ IMG_BOOL OSFlushCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 								IMG_UINT32 ui32Length)
 {
 	if (ui32Length)
-		dma_cache_wback_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);
+		dma_cache_wback_inv((IMG_UINTPTR_T)pvRangeAddrStart, ui32Length);	
 	return IMG_TRUE;
 }
 

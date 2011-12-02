@@ -90,9 +90,8 @@ static ssize_t overlay_manager_store(struct omap_overlay *ovl, const char *buf,
 
 	if (mgr && sysfs_streq(mgr->name, "tv")) {
 		ovl->get_overlay_info(ovl, &info);
-		if (mgr->device->panel.timings.x_res < info.out_width ||
-			mgr->device->panel.timings.y_res < info.out_height) {
-			printk(KERN_ERR"output window size exceeds panel dimensions");
+		if (mgr->device->panel.timings.x_res < info.out_width) {
+			printk(KERN_ERR "output window size exceeds panel dimensions");
 			return -EINVAL;
 		}
 	}
@@ -227,7 +226,7 @@ static ssize_t overlay_output_size_store(struct omap_overlay *ovl,
 	if (sysfs_streq(ovl->manager->name, "tv")) {
 		if (ovl->manager->device->panel.timings.x_res < out_width ||
 		ovl->manager->device->panel.timings.y_res < out_height)
-		printk(KERN_ERR"TV does not support downscaling , Wrong output size");
+		printk(KERN_ERR "TV does not support downscaling , Wrong output size");
 		return -EINVAL;
 	}
 
@@ -420,6 +419,35 @@ static ssize_t overlay_zorder_store(struct omap_overlay *ovl,
 	return size;
 }
 
+static ssize_t overlay_color_mode_show(struct omap_overlay *ovl, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+			ovl->info.color_mode);
+}
+
+static ssize_t overlay_color_mode_store(struct omap_overlay *ovl,
+		const char *buf, size_t size)
+{
+	int r;
+	struct omap_overlay_info info;
+
+	ovl->get_overlay_info(ovl, &info);
+
+	info.color_mode = simple_strtoul(buf, NULL, 10);
+
+	r = ovl->set_overlay_info(ovl, &info);
+	if (r)
+		return r;
+
+	if (ovl->manager) {
+		r = ovl->manager->apply(ovl->manager);
+		if (r)
+			return r;
+	}
+
+	return size;
+}
+
 struct overlay_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct omap_overlay *, char *);
@@ -450,7 +478,8 @@ static OVERLAY_ATTR(y_decim, S_IRUGO|S_IWUSR,
 		overlay_y_decim_show, overlay_y_decim_store);
 static OVERLAY_ATTR(zorder, S_IRUGO|S_IWUSR,
 		overlay_zorder_show, overlay_zorder_store);
-
+static OVERLAY_ATTR(color_mode, S_IRUGO|S_IWUSR,
+		overlay_color_mode_show, overlay_color_mode_store);
 
 static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_name.attr,
@@ -464,6 +493,7 @@ static struct attribute *overlay_sysfs_attrs[] = {
 	&overlay_attr_x_decim.attr,
 	&overlay_attr_y_decim.attr,
 	&overlay_attr_zorder.attr,
+	&overlay_attr_color_mode.attr,
 	NULL
 };
 
@@ -523,7 +553,7 @@ int dss_check_overlay(struct omap_overlay *ovl, struct omap_dss_device *dssdev)
 	info = &ovl->info;
 
 	if (info->paddr == 0) {
-		DSSDBG("check_overlay failed: paddr 0\n");
+		DSSERR("check_overlay failed: paddr 0\n");
 		return -EINVAL;
 	}
 
@@ -556,13 +586,13 @@ int dss_check_overlay(struct omap_overlay *ovl, struct omap_dss_device *dssdev)
 	}
 
 	if ((dw < info->pos_x + outw) && !info->out_wb) {
-		DSSDBG("check_overlay failed 1: %d < %d + %d\n",
+		DSSERR("check_overlay failed 1: %d < %d + %d\n",
 				dw, info->pos_x, outw);
 		return -EINVAL;
 	}
 
 	if ((dh < info->pos_y + outh) && !info->out_wb) {
-		DSSDBG("check_overlay failed 2: %d < %d + %d\n",
+		DSSERR("check_overlay failed 2: %d < %d + %d\n",
 				dh, info->pos_y, outh);
 		return -EINVAL;
 	}
@@ -596,6 +626,8 @@ static int dss_ovl_set_overlay_info(struct omap_overlay *ovl,
 			ovl->info = old_info;
 			return r;
 		}
+
+		omap_dss_notify(ovl->manager->device, OMAP_DSS_OVL_INFO_RESET);
 	}
 
 	ovl->info_dirty = true;
@@ -736,8 +768,9 @@ void dss_init_overlays(struct platform_device *pdev)
 		case 0:
 			ovl->name = "gfx";
 			ovl->id = OMAP_DSS_GFX;
-			ovl->supported_modes = (cpu_is_omap44xx() |
-				cpu_is_omap34xx()) ?
+			ovl->supported_modes = cpu_is_omap44xx() ?
+				OMAP_DSS_COLOR_GFX_OMAP4 :
+				cpu_is_omap34xx() ?
 				OMAP_DSS_COLOR_GFX_OMAP3 :
 				OMAP_DSS_COLOR_GFX_OMAP2;
 			ovl->caps = OMAP_DSS_OVL_CAP_DISPC;
@@ -747,8 +780,9 @@ void dss_init_overlays(struct platform_device *pdev)
 		case 1:
 			ovl->name = "vid1";
 			ovl->id = OMAP_DSS_VIDEO1;
-			ovl->supported_modes = (cpu_is_omap44xx() |
-				cpu_is_omap34xx()) ?
+			ovl->supported_modes = cpu_is_omap44xx() ?
+				OMAP_DSS_COLOR_VID_OMAP4 :
+				cpu_is_omap34xx() ?
 				OMAP_DSS_COLOR_VID1_OMAP3 :
 				OMAP_DSS_COLOR_VID_OMAP2;
 			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
@@ -762,8 +796,9 @@ void dss_init_overlays(struct platform_device *pdev)
 		case 2:
 			ovl->name = "vid2";
 			ovl->id = OMAP_DSS_VIDEO2;
-			ovl->supported_modes = (cpu_is_omap44xx() |
-				cpu_is_omap34xx()) ?
+			ovl->supported_modes = cpu_is_omap44xx() ?
+				OMAP_DSS_COLOR_VID_OMAP4 :
+				cpu_is_omap34xx() ?
 				OMAP_DSS_COLOR_VID2_OMAP3 :
 				OMAP_DSS_COLOR_VID_OMAP2;
 			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
@@ -777,7 +812,7 @@ void dss_init_overlays(struct platform_device *pdev)
 		case 3:
 			ovl->name = "vid3";
 			ovl->id = OMAP_DSS_VIDEO3;
-			ovl->supported_modes = OMAP_DSS_COLOR_VID3_OMAP3;
+			ovl->supported_modes = OMAP_DSS_COLOR_VID_OMAP4;
 			ovl->caps = OMAP_DSS_OVL_CAP_SCALE |
 				OMAP_DSS_OVL_CAP_DISPC;
 			ovl->info.yuv2rgb_conv.type =

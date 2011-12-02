@@ -50,7 +50,7 @@ static PVRSRV_DEVICE_NODE *gpsSGXDevNode;
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
 #endif
 
-#if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
+#if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
 extern struct platform_device *gpsPVRLDMDev;
 #endif
 
@@ -155,7 +155,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 
 #else 
 #if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
-
+	
 	dev_res = platform_get_resource(gpsPVRLDMDev, IORESOURCE_MEM, 0);
 	if (dev_res == NULL)
 	{
@@ -169,7 +169,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 		PVR_DPF((PVR_DBG_ERROR, "%s: platform_get_irq failed (%d)", __FUNCTION__, -dev_irq));
 		return PVRSRV_ERROR_INVALID_DEVICE;
 	}
-
+	
 	gsSGXDeviceMap.sRegsSysPBase.uiAddr = dev_res->start;
 	gsSGXDeviceMap.sRegsCpuPBase =
 		SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
@@ -180,14 +180,14 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 
 	gsSGXDeviceMap.ui32IRQ = dev_irq;
 	PVR_TRACE(("SGX IRQ: %d", gsSGXDeviceMap.ui32IRQ));
-#else
+#else	
 	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
 	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
 
 	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
 
-#endif
+#endif	
 #if defined(SGX_OCP_REGS_ENABLED)
 	gsSGXRegsCPUVAddr = OSMapPhysToLin(gsSGXDeviceMap.sRegsCpuPBase,
 	gsSGXDeviceMap.ui32RegsSize,
@@ -200,7 +200,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 		return PVRSRV_ERROR_BAD_MAPPING;
 	}
 
-
+	
 	gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
 	gpvOCPRegsLinAddr = gsSGXRegsCPUVAddr;
 #endif
@@ -474,7 +474,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 				  (IMG_VOID **)&gpsSysData->pvSOCTimerRegisterKM,
 				  &gpsSysData->hSOCTimerRegisterOSMemHandle);
 	}
-#endif
+#endif 
 
 	return PVRSRV_OK;
 }
@@ -488,7 +488,7 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	eError = EnableSGXClocksWrap(gpsSysData);
 	if (eError != PVRSRV_OK)
 	{
-		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to Enable SGX clocks (%d)", eError));
+		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to Enable SGX clocks (%d)", eError));
 		return eError;
 	}
 #endif	
@@ -637,11 +637,11 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 
 		gpvOCPRegsLinAddr = IMG_NULL;
 #endif
-#endif
+#endif	
 		gsSGXRegsCPUVAddr = IMG_NULL;
 		gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
 	}
-#endif
+#endif	
 
 	
 	gpsSysSpecificData->ui32SysSpecificData = 0;
@@ -770,7 +770,7 @@ IMG_VOID SysClearInterrupts(SYS_DATA* psSysData, IMG_UINT32 ui32ClearBits)
 #endif
 	
 	OSReadHWReg(((PVRSRV_SGXDEV_INFO *)gpsSGXDevNode->pvDevice)->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR);
-#endif
+#endif	
 }
 
 #if defined(SGX_OCP_NO_INT_BYPASS)
@@ -795,7 +795,7 @@ IMG_VOID SysDisableSGXInterrupts(SYS_DATA *psSysData)
 		SYS_SPECIFIC_DATA_CLEAR(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED);
 	}
 }
-#endif
+#endif	
 
 PVRSRV_ERROR SysSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 {

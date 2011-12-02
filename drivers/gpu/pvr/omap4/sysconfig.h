@@ -31,6 +31,7 @@
 
 #if defined(SGX540) && (SGX_CORE_REV == 120)
 #define SYS_SGX_CLOCK_SPEED		307200000
+#define SYS_SGX_OPP119_CLK_SPEED 384000000
 #else
 #define SYS_SGX_CLOCK_SPEED		304742400
 #endif
@@ -55,7 +56,7 @@
 
 #if defined(__linux__)
 #define	SYS_SGX_DEV_NAME	"omap_gpu"
-#endif
+#endif	
 
  
 #endif	

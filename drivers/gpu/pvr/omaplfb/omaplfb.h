@@ -27,9 +27,17 @@
 #ifndef __OMAPLFB_H__
 #define __OMAPLFB_H__
 
+#include <linux/miscdevice.h>
+#include <video/dsscomp.h>
+#include <plat/dsscomp.h>
+#include <video/omaplfb-dev.h>
+
+#define OMAPLFB_CLONING_BUFFER_NUM 2
+
 extern IMG_BOOL PVRGetDisplayClassJTable(PVRSRV_DC_DISP2SRV_KMJTABLE *psJTable);
 
 typedef void * OMAP_HANDLE;
+struct omaplfb_clone_data;
 
 typedef enum tag_omap_bool
 {
@@ -69,7 +77,6 @@ typedef struct PVRPDP_SWAPCHAIN_TAG
 	OMAP_BOOL                       bFlushCommands;
 	unsigned long                   ulSetFlushStateRefCount;
 	OMAP_BOOL                       bBlanked;
-	spinlock_t*                     psSwapChainLock;
 	void*                           pvDevInfo;
 
 } OMAPLFB_SWAPCHAIN;
@@ -109,6 +116,9 @@ typedef struct OMAPLFB_DEVINFO_TAG
 	struct work_struct	        sync_display_work;
 	struct kobject			kobj;
 	OMAP_BOOL			ignore_sync;
+	struct mutex                    clone_lock;
+	int				cloning_enabled;
+	struct omaplfb_clone_data	*clone_data;
 
 }  OMAPLFB_DEVINFO;
 
@@ -127,9 +137,30 @@ typedef enum _OMAP_ERROR_
 } OMAP_ERROR;
 
 struct omaplfb_device {
+	struct miscdevice node;
 	struct device *dev;
 	OMAPLFB_DEVINFO *display_info_list;
 	int display_count;
+};
+
+struct omaplfb_clone_work {
+	struct work_struct work;
+	dsscomp_t comp;
+	int transfer_active;
+	OMAPLFB_DEVINFO *display_info;
+	u32 src_buf_addr;
+};
+
+struct omaplfb_clone_data {
+	struct workqueue_struct *workqueue;
+	int mgr_id_src;
+	int mgr_id_dst;
+	u32 buffs[OMAPLFB_CLONING_BUFFER_NUM];
+	int buff_num;
+	int active_buf_idx;
+	wait_queue_head_t transfer_waitq;
+	wait_queue_head_t dma_waitq;
+	int dma_transfer_done;
 };
 
 #define	OMAPLFB_PAGE_SIZE 4096
@@ -159,15 +190,25 @@ struct omaplfb_device {
 
 OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev);
 OMAP_ERROR OMAPLFBDeinit(void);
-void *OMAPLFBAllocKernelMem(unsigned long ulSize);
-void OMAPLFBFreeKernelMem(void *pvMem);
 void OMAPLFBPresentSync(OMAPLFB_DEVINFO *psDevInfo,
 	OMAPLFB_FLIP_ITEM *psFlipItem);
 OMAP_ERROR OMAPLFBGetLibFuncAddr(char *szFunctionName,
 	PFN_DC_GET_PVRJTABLE *ppfnFuncTable);
 void OMAPLFBFlip(OMAPLFB_SWAPCHAIN *psSwapChain, unsigned long aPhyAddr);
+OMAPLFB_DEVINFO *omaplfb_get_devinfo(int index);
+void set_use_dsscomp(int use);
+int omaplfb_enable_cloning(int mgr_id_src, int mgr_id_dst, int buff_num);
+int omaplfb_disable_cloning(int mgr_id_src);
+void omaplfb_disable_cloning_alldisp(void);
 void omaplfb_create_sysfs(struct omaplfb_device *odev);
 void omaplfb_remove_sysfs(struct omaplfb_device *odev);
+void omaplfb_dsscomp_init(void);
+int omaplfb_dsscomp_setup(struct omaplfb_dsscomp_info *infop);
+void omaplfb_dsscomp_get(struct dsscomp_setup_mgr_data **datap, int mgr_ix);
+void omaplfb_dsscomp_free(struct dsscomp_setup_mgr_data *datap, dsscomp_t comp);
+void omaplfb_dsscomp_enable(void);
+void omaplfb_dsscomp_disable(void);
+bool omaplfb_dsscomp_isempty(void);
 #ifdef LDM_PLATFORM
 void OMAPLFBDriverSuspend(void);
 void OMAPLFBDriverResume(void);

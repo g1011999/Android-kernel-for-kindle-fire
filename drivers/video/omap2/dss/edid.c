@@ -310,13 +310,13 @@ void hdmi_get_av_delay(u8 *edid, struct latency *lat)
 	if (!hdmi_get_datablock_offset(edid, vsdb, &offset)) {
 		current_byte = edid[offset];
 		length = current_byte & HDMI_EDID_EX_DATABLOCK_LEN_MASK;
-		if (length >= 8 && ((current_byte + 8) & 0x80)) {
-			lat->vid_latency = ((current_byte + 8) - 1) * 2;
-			lat->aud_latency = ((current_byte + 9) - 1) * 2;
+		if (length >= 8 && (edid[offset + 8] & 0x80)) {
+			lat->vid_latency = (edid[offset + 8] - 1) * 2;
+			lat->aud_latency = (edid[offset + 9] - 1) * 2;
 		}
-		if (length >= 8 && ((current_byte + 8) & 0xC0)) {
-			lat->int_vid_latency = ((current_byte + 10) - 1) * 2;
-			lat->int_aud_latency = ((current_byte + 11) - 1) * 2;
+		if (length >= 8 && (edid[offset + 8] & 0xC0)) {
+			lat->int_vid_latency = (edid[offset + 10] - 1) * 2;
+			lat->int_aud_latency = (edid[offset + 11] - 1) * 2;
 		}
 	}
 }
@@ -331,11 +331,11 @@ void hdmi_deep_color_support_info(u8 *edid, struct deep_color *format)
 		current_byte = edid[offset];
 		length = current_byte & HDMI_EDID_EX_DATABLOCK_LEN_MASK;
 		if (length >= 6) {
-			format->bit_30 = ((current_byte + 6) & 0x10);
-			format->bit_36 = ((current_byte + 6) & 0x20);
+			format->bit_30 = (edid[offset + 6] & 0x10);
+			format->bit_36 = (edid[offset + 6] & 0x20);
 		}
 		if (length >= 7)
-			format->max_tmds_freq = ((current_byte + 7)) * 5;
+			format->max_tmds_freq = (edid[offset + 7]) * 5;
 	}
 }
 

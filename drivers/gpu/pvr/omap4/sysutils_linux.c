@@ -59,13 +59,25 @@
 extern struct platform_device *gpsPVRLDMDev;
 #endif
 
-static IMG_VOID PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData)
+static PVRSRV_ERROR PowerLockWrap(SYS_SPECIFIC_DATA *psSysSpecData, IMG_BOOL bTryLock)
 {
 	if (!in_interrupt())
 	{
-		mutex_lock(&psSysSpecData->sPowerLock);
-
+		if (bTryLock)
+		{
+			int locked = mutex_trylock(&psSysSpecData->sPowerLock);
+			if (locked == 0)
+			{
+				return PVRSRV_ERROR_RETRY;
+			}
+		}
+		else
+		{
+			mutex_lock(&psSysSpecData->sPowerLock);
+		}
 	}
+
+	return PVRSRV_OK;
 }
 
 static IMG_VOID PowerLockUnwrap(SYS_SPECIFIC_DATA *psSysSpecData)
@@ -76,15 +88,13 @@ static IMG_VOID PowerLockUnwrap(SYS_SPECIFIC_DATA *psSysSpecData)
 	}
 }
 
-PVRSRV_ERROR SysPowerLockWrap(IMG_VOID)
+PVRSRV_ERROR SysPowerLockWrap(IMG_BOOL bTryLock)
 {
 	SYS_DATA	*psSysData;
 
 	SysAcquireData(&psSysData);
 
-	PowerLockWrap(psSysData->pvSysSpecificData);
-
-	return PVRSRV_OK;
+	return PowerLockWrap(psSysData->pvSysSpecificData, bTryLock);
 }
 
 IMG_VOID SysPowerLockUnwrap(IMG_VOID)
@@ -159,10 +169,10 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 
 #if defined(LDM_PLATFORM) && !defined(PVR_DRI_DRM_NOT_PCI)
 	omap_device_set_rate(&gpsPVRLDMDev->dev,
-			&gpsPVRLDMDev->dev, SYS_SGX_CLOCK_SPEED);
+			&gpsPVRLDMDev->dev, SYS_SGX_OPP119_CLK_SPEED);
 
 	{
-
+		
 		int res = pm_runtime_get_sync(&gpsPVRLDMDev->dev);
 		if (res < 0)
 		{
@@ -225,25 +235,25 @@ static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 	PVR_ASSERT(psSysSpecData->psGPTimer == NULL);
 
-
+	
 	psSysSpecData->psGPTimer = omap_dm_timer_request_specific(GPTIMER_TO_USE);
 	if (psSysSpecData->psGPTimer == NULL)
 	{
-
+	
 		PVR_DPF((PVR_DBG_WARNING, "%s: omap_dm_timer_request_specific failed", __FUNCTION__));
 		return PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
 	}
 
-
+	
 	omap_dm_timer_set_source(psSysSpecData->psGPTimer, OMAP_TIMER_SRC_SYS_CLK);
 	omap_dm_timer_enable(psSysSpecData->psGPTimer);
 
-
+	
 	omap_dm_timer_set_load_start(psSysSpecData->psGPTimer, 1, 0);
 
 	omap_dm_timer_start(psSysSpecData->psGPTimer);
 
-
+	
 	psSysSpecData->sTimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE;
 
 	return PVRSRV_OK;
@@ -253,7 +263,7 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 	if (psSysSpecData->psGPTimer != NULL)
 	{
-
+			
 		(void) omap_dm_timer_stop(psSysSpecData->psGPTimer);
 
 		omap_dm_timer_disable(psSysSpecData->psGPTimer);
@@ -266,7 +276,7 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	}
 
 }
-#else
+#else	
 static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 #if defined(PVR_OMAP4_TIMING_PRCM)
@@ -396,7 +406,7 @@ ExitDisableGPT11ICK:
 ExitDisableGPT11FCK:
 	clk_disable(psSysSpecData->psGPT11_FCK);
 ExitError:
-#endif
+#endif	
 	eError = PVRSRV_ERROR_CLOCK_REQUEST_FAILED;
 Exit:
 	return eError;
@@ -440,8 +450,8 @@ static void ReleaseGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 	clk_disable(psSysSpecData->psGPT11_FCK);
 #endif	
 }
-#endif
-#else
+#endif	
+#else	
 static PVRSRV_ERROR AcquireGPTimer(SYS_SPECIFIC_DATA *psSysSpecData)
 {
 	PVR_UNREFERENCED_PARAMETER(psSysSpecData);
@@ -478,7 +488,7 @@ IMG_VOID DisableSystemClocks(SYS_DATA *psSysData)
 
 	PVR_TRACE(("DisableSystemClocks: Disabling System Clocks"));
 
-
+	
 	DisableSGXClocks(psSysData);
 
 	ReleaseGPTimer(psSysSpecData);

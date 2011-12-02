@@ -24,18 +24,14 @@
  *
  ******************************************************************************/
 
-#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/console.h>
 #include <linux/fb.h>
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
 #include <plat/vrfb.h>
 #include <plat/display.h>
-#else
-#include <mach/vrfb.h>
-#include <mach/display.h>
-#endif
+#include <linux/module.h>
+#include <linux/string.h>
+#include <linux/notifier.h>
 
 #ifdef RELEASE
 #include <../drivers/video/omap2/omapfb/omapfb.h>
@@ -44,10 +40,6 @@
 #undef DEBUG
 #include <../drivers/video/omap2/omapfb/omapfb.h>
 #endif
-
-#include <linux/module.h>
-#include <linux/string.h>
-#include <linux/notifier.h>
 
 #ifdef CONFIG_TILER_OMAP
 #include <mach/tiler.h>
@@ -72,6 +64,14 @@ static PFN_DC_GET_PVRJTABLE pfnGetPVRJTable = NULL;
 static OMAPLFB_DEVINFO *pDisplayDevices = NULL;
 
 static void OMAPLFBSyncIHandler(struct work_struct*);
+
+OMAPLFB_DEVINFO *omaplfb_get_devinfo(int index)
+{
+	if (index < 0 || index >= FRAMEBUFFER_COUNT || !pDisplayDevices)
+		return NULL;
+
+	return &pDisplayDevices[index];
+}
 
 /*
  * Swap to display buffer. This buffer refers to one inside the
@@ -728,8 +728,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	}		
 
 	/* Allocate memory needed for the swap chain */
-	psSwapChain = (OMAPLFB_SWAPCHAIN*)OMAPLFBAllocKernelMem(
-		sizeof(OMAPLFB_SWAPCHAIN));
+	psSwapChain = kzalloc(sizeof(OMAPLFB_SWAPCHAIN), GFP_KERNEL);
 	if(!psSwapChain)
 	{
 		ERROR_PRINTK("Out of memory to allocate swap chain for"
@@ -741,8 +740,8 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 		(unsigned long)psSwapChain, psDevInfo->uDeviceID);
 
 	/* Allocate memory for the buffer abstraction structures */
-	psBuffer = (OMAPLFB_BUFFER*)OMAPLFBAllocKernelMem(
-		sizeof(OMAPLFB_BUFFER) * ui32BufferCount);
+	psBuffer = kzalloc(sizeof(OMAPLFB_BUFFER) * ui32BufferCount,
+		GFP_KERNEL);
 	if(!psBuffer)
 	{
 		ERROR_PRINTK("Out of memory to allocate the buffer"
@@ -753,8 +752,8 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	}
 
 	/* Allocate memory for the flip item abstraction structures */
-	psFlipItems = (OMAPLFB_FLIP_ITEM *)OMAPLFBAllocKernelMem(
-		sizeof(OMAPLFB_FLIP_ITEM) * ui32BufferCount);
+	psFlipItems = kzalloc(sizeof(OMAPLFB_FLIP_ITEM) * ui32BufferCount,
+		GFP_KERNEL);
 	if (!psFlipItems)
 	{
 		ERROR_PRINTK("Out of memory to allocate the flip item"
@@ -841,11 +840,11 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	return PVRSRV_OK;
 
 ErrorUnRegisterDisplayClient:
-	OMAPLFBFreeKernelMem(psFlipItems);
+	kfree(psFlipItems);
 ErrorFreeBuffers:
-	OMAPLFBFreeKernelMem(psBuffer);
+	kfree(psBuffer);
 ErrorFreeSwapChain:
-	OMAPLFBFreeKernelMem(psSwapChain);
+	kfree(psSwapChain);
 
 	return eError;
 }
@@ -905,9 +904,9 @@ static PVRSRV_ERROR DestroyDCSwapChain(IMG_HANDLE hDevice,
 	flush_workqueue(psDevInfo->sync_display_wq);
 	destroy_workqueue(psDevInfo->sync_display_wq);
 
-	OMAPLFBFreeKernelMem(psSwapChain->psFlipItems);
-	OMAPLFBFreeKernelMem(psSwapChain->psBuffer);
-	OMAPLFBFreeKernelMem(psSwapChain);
+	kfree(psSwapChain->psFlipItems);
+	kfree(psSwapChain->psBuffer);
+	kfree(psSwapChain);
 
 	return PVRSRV_OK;
 }
@@ -1122,18 +1121,11 @@ static IMG_BOOL ProcessFlip(IMG_HANDLE  hCmdCookie,
 
 	mutex_lock(&psDevInfo->sSwapChainLockMutex);
 
-	if (psDevInfo->bDeviceSuspended)
-	{
-		/* If is suspended then assume the commands are completed */
-		psSwapChain->psPVRJTable->pfnPVRSRVCmdComplete(
-			hCmdCookie, IMG_TRUE);
-		goto ExitTrueUnlock;
-	}
-
 #if defined(SYS_USING_INTERRUPTS)
 
 	if( psFlipCmd->ui32SwapInterval == 0 ||
 		psDevInfo->ignore_sync ||
+		psDevInfo->bDeviceSuspended ||
 		psSwapChain->bFlushCommands == OMAP_TRUE)
 	{
 #endif
@@ -1211,6 +1203,7 @@ void OMAPLFBDriverSuspend(void)
 		}
 
 		psDevInfo->bDeviceSuspended = OMAP_TRUE;
+		omaplfb_dsscomp_disable();
 		SetFlushStateInternalNoLock(psDevInfo, OMAP_TRUE);
 
 		mutex_unlock(&psDevInfo->sSwapChainLockMutex);
@@ -1242,7 +1235,7 @@ void OMAPLFBDriverResume(void)
 
 		SetFlushStateInternalNoLock(psDevInfo, OMAP_FALSE);
 		psDevInfo->bDeviceSuspended = OMAP_FALSE;
-
+		omaplfb_dsscomp_enable();
 		mutex_unlock(&psDevInfo->sSwapChainLockMutex);
 	}
 }
@@ -1310,7 +1303,7 @@ OMAP_ERROR OMAPLFBDeinit(void)
 		DeInitDev(psDevInfo);
 	}
 
-	OMAPLFBFreeKernelMem(pDisplayDevices);
+	kfree(pDisplayDevices);
 
 	return OMAP_OK;
 }
@@ -1561,17 +1554,6 @@ OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev)
 	DEBUG_PRINTK("Initializing 3rd party display driver");
 	DEBUG_PRINTK("Found %u framebuffers", FRAMEBUFFER_COUNT);
 
-#if defined(REQUIRES_TWO_FRAMEBUFFERS)
-	/*
-	 * Fail hard if there isn't at least two framebuffers available
-	 */
-	if(FRAMEBUFFER_COUNT < 2)
-	{
-		ERROR_PRINTK("Driver needs at least two framebuffers");
-		return OMAP_ERROR_INIT_FAILURE;
-	}
-#endif
-
 	/*
 	 * Obtain the function pointer for the jump table from
 	 * services to fill it with the function pointers that we want
@@ -1587,15 +1569,12 @@ OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev)
 	/*
 	 * Allocate the display device structures, one per framebuffer
 	 */
-	pDisplayDevices = (OMAPLFB_DEVINFO *)OMAPLFBAllocKernelMem(
-			sizeof(OMAPLFB_DEVINFO) * FRAMEBUFFER_COUNT);
-	if(!pDisplayDevices)
-	{
+	pDisplayDevices = kzalloc(sizeof(OMAPLFB_DEVINFO) * FRAMEBUFFER_COUNT,
+			GFP_KERNEL);
+	if (!pDisplayDevices) {
 		ERROR_PRINTK("Out of memory");
 		return OMAP_ERROR_OUT_OF_MEMORY;
 	}
-	memset(pDisplayDevices, 0, sizeof(OMAPLFB_DEVINFO) *
-		FRAMEBUFFER_COUNT);
 	omaplfb_dev->display_info_list = pDisplayDevices;
 	omaplfb_dev->display_count = FRAMEBUFFER_COUNT;
 
@@ -1613,7 +1592,7 @@ OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev)
 		{
 			ERROR_PRINTK("Unable to initialize display "
 				"device %i",i);
-			OMAPLFBFreeKernelMem(pDisplayDevices);
+			kfree(pDisplayDevices);
 			pDisplayDevices = NULL;
 			return OMAP_ERROR_INIT_FAILURE;
 		}
@@ -1632,11 +1611,13 @@ OMAP_ERROR OMAPLFBInit(struct omaplfb_device *omaplfb_dev)
 		}
 
 		mutex_init(&psDevInfo->sSwapChainLockMutex);
-
+		mutex_init(&psDevInfo->clone_lock);
 		psDevInfo->psSwapChain = 0;
 		psDevInfo->bFlushCommands = OMAP_FALSE;
 		psDevInfo->bDeviceSuspended = OMAP_FALSE;
 		psDevInfo->ignore_sync = OMAP_FALSE;
+		psDevInfo->cloning_enabled = 0;
+		psDevInfo->clone_data = NULL;
 
 		if(psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers > 1)
 		{
