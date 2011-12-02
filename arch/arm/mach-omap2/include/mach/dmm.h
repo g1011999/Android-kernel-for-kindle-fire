@@ -123,4 +123,19 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *desc, enum pat_mode mode);
  */
 void dmm_pat_release(struct dmm *dmm);
 
+/**
+ * DMM Platform Device Data structure
+ *
+ */
+struct omap_dmm_platform_data {
+	const char *oh_name;
+	void __iomem *base;
+};
+
+/**
+ * Init function for use in board init file
+ *
+ */
+void omap_dmm_init(void);
+
 #endif

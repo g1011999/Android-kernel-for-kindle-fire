@@ -55,6 +55,13 @@
 #define DISPC_IRQ_FRAMEDONE_DIG		(1 << 24)
 #define DISPC_IRQ_WB_BUF_OVERFLOW	(1 << 25)
 
+enum omap_dsi_data_type {
+	DSI_DT_PXLSTREAM_16BPP_PACKED = 0x0E,
+	DSI_DT_PXLSTREAM_18BPP_PACKED = 0x1E,
+	DSI_DT_PXLSTREAM_18BPP_LOOSE  = 0x2E,
+	DSI_DT_PXLSTREAM_24BPP_PACKED = 0x3E,
+};
+
 struct omap_dss_device;
 struct omap_overlay_manager;
 
@@ -68,12 +75,30 @@ enum omap_display_type {
 	OMAP_DISPLAY_TYPE_HDMI		= 1 << 5,
 };
 
+/**
+ * DSI mode
+ */
+enum omap_dsi_xfer_mode {
+	OMAP_DSI_XFER_CMD_MODE = 0,	/* default */
+	OMAP_DSI_XFER_VIDEO_MODE,
+};
+
+/**
+ * DSI virtual channels
+ */
+enum dsi_virtual_channels {
+	DSI_VC_0 = 0,
+	DSI_VC_1,
+	DSI_VC_2,
+	DSI_VC_3,
+};
+
 enum omap_plane {
 	OMAP_DSS_GFX	= 0,
 	OMAP_DSS_VIDEO1	= 1,
 	OMAP_DSS_VIDEO2	= 2,
 	OMAP_DSS_VIDEO3	= 3,
-	OMAP_DSS_WB 	= 4,
+	OMAP_DSS_WB		= 4,
 };
 
 enum omap_channel {
@@ -87,22 +112,32 @@ enum omap_color_mode {
 	OMAP_DSS_COLOR_CLUT2		= 1 << 1,  /* BITMAP 2 */
 	OMAP_DSS_COLOR_CLUT4		= 1 << 2,  /* BITMAP 4 */
 	OMAP_DSS_COLOR_CLUT8		= 1 << 3,  /* BITMAP 8 */
-	OMAP_DSS_COLOR_RGB12U		= 1 << 4,  /* RGB12, 16-bit container */
-	OMAP_DSS_COLOR_ARGB16		= 1 << 5,  /* ARGB16 */
-	OMAP_DSS_COLOR_RGB16		= 1 << 6,  /* RGB16 */
-	OMAP_DSS_COLOR_RGB24U		= 1 << 7,  /* RGB24, 32-bit container */
-	OMAP_DSS_COLOR_RGB24P		= 1 << 8,  /* RGB24, 24-bit container */
+
+	/* also referred to as RGB 12-BPP, 16-bit container  */
+	OMAP_DSS_COLOR_RGB12U		= 1 << 4,  /* xRGB12-4444 */
+	OMAP_DSS_COLOR_ARGB16		= 1 << 5,  /* ARGB16-4444 */
+	OMAP_DSS_COLOR_RGB16		= 1 << 6,  /* RGB16-565 */
+
+	/* also referred to as RGB 24-BPP, 32-bit container */
+	OMAP_DSS_COLOR_RGB24U		= 1 << 7,  /* xRGB24-8888 */
+	OMAP_DSS_COLOR_RGB24P		= 1 << 8,  /* RGB24-888 */
 	OMAP_DSS_COLOR_YUV2		= 1 << 9,  /* YUV2 4:2:2 co-sited */
 	OMAP_DSS_COLOR_UYVY		= 1 << 10, /* UYVY 4:2:2 co-sited */
-	OMAP_DSS_COLOR_ARGB32		= 1 << 11, /* ARGB32 */
-	OMAP_DSS_COLOR_RGBA32		= 1 << 12, /* RGBA32 */
-	OMAP_DSS_COLOR_RGBX32		= 1 << 13, /* RGBx32 */
+	OMAP_DSS_COLOR_ARGB32		= 1 << 11, /* ARGB32-8888 */
+	OMAP_DSS_COLOR_RGBA32		= 1 << 12, /* RGBA32-8888 */
+
+	/* also referred to as RGBx 32 in TRM */
+	OMAP_DSS_COLOR_RGBX24		= 1 << 13, /* RGBx24-8888 */
 	OMAP_DSS_COLOR_NV12		= 1 << 14, /* NV12 format: YUV 4:2:0 */
-	OMAP_DSS_COLOR_RGBA12		= 1 << 15, /* RGBA12 - 4444 */
-	OMAP_DSS_COLOR_XRGB12		= 1 << 16, /* xRGB12, 16-bit cont. */
+
+	/* also referred to as RGBA12-4444 in TRM */
+	OMAP_DSS_COLOR_RGBA16		= 1 << 15, /* RGBA16-4444 */
+
+	OMAP_DSS_COLOR_RGBX12		= 1 << 16, /* RGBx12-4444 */
 	OMAP_DSS_COLOR_ARGB16_1555	= 1 << 17, /* ARGB16-1555 */
-	OMAP_DSS_COLOR_RGBX24_32_ALGN   = 1 << 18, /* 32-msb aligned 24bit */
-	OMAP_DSS_COLOR_XRGB15		= 1 << 19, /* xRGB15: 1555*/
+
+	/* also referred to as xRGB16-555 in TRM */
+	OMAP_DSS_COLOR_XRGB15		= 1 << 18, /* xRGB15-1555 */
 
 	OMAP_DSS_COLOR_GFX_OMAP2 =
 		OMAP_DSS_COLOR_CLUT1 | OMAP_DSS_COLOR_CLUT2 |
@@ -121,29 +156,39 @@ enum omap_color_mode {
 		OMAP_DSS_COLOR_RGB12U | OMAP_DSS_COLOR_ARGB16 |
 		OMAP_DSS_COLOR_RGB16 | OMAP_DSS_COLOR_RGB24U |
 		OMAP_DSS_COLOR_RGB24P | OMAP_DSS_COLOR_ARGB32 |
-		OMAP_DSS_COLOR_RGBA32 | OMAP_DSS_COLOR_RGBX32,
+		OMAP_DSS_COLOR_RGBA32,
 
 	OMAP_DSS_COLOR_VID1_OMAP3 =
-		OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_RGBA12 |
-		OMAP_DSS_COLOR_XRGB12 | OMAP_DSS_COLOR_ARGB16_1555 |
-		OMAP_DSS_COLOR_RGBX24_32_ALGN | OMAP_DSS_COLOR_XRGB15 |
 		OMAP_DSS_COLOR_RGB12U | OMAP_DSS_COLOR_RGB16 |
 		OMAP_DSS_COLOR_RGB24U | OMAP_DSS_COLOR_RGB24P |
-		OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY |
-		OMAP_DSS_COLOR_ARGB32 | OMAP_DSS_COLOR_RGBA32 |
-		OMAP_DSS_COLOR_RGBX32,
+		OMAP_DSS_COLOR_YUV2 | OMAP_DSS_COLOR_UYVY,
 
 	OMAP_DSS_COLOR_VID2_OMAP3 =
-		OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_RGBA12 |
-		OMAP_DSS_COLOR_XRGB12 | OMAP_DSS_COLOR_ARGB16_1555 |
-		OMAP_DSS_COLOR_RGBX24_32_ALGN | OMAP_DSS_COLOR_XRGB15 |
 		OMAP_DSS_COLOR_RGB12U | OMAP_DSS_COLOR_ARGB16 |
 		OMAP_DSS_COLOR_RGB16 | OMAP_DSS_COLOR_RGB24U |
 		OMAP_DSS_COLOR_RGB24P | OMAP_DSS_COLOR_YUV2 |
 		OMAP_DSS_COLOR_UYVY | OMAP_DSS_COLOR_ARGB32 |
-		OMAP_DSS_COLOR_RGBA32 | OMAP_DSS_COLOR_RGBX32,
+		OMAP_DSS_COLOR_RGBA32,
 
-	OMAP_DSS_COLOR_VID3_OMAP3 = OMAP_DSS_COLOR_VID2_OMAP3,
+	OMAP_DSS_COLOR_GFX_OMAP4 =
+		OMAP_DSS_COLOR_CLUT1 | OMAP_DSS_COLOR_CLUT2 |
+		OMAP_DSS_COLOR_CLUT4 | OMAP_DSS_COLOR_CLUT8 |
+		OMAP_DSS_COLOR_RGB12U | OMAP_DSS_COLOR_ARGB16 |
+		OMAP_DSS_COLOR_RGB16 | OMAP_DSS_COLOR_RGB24U |
+		OMAP_DSS_COLOR_RGB24P | OMAP_DSS_COLOR_ARGB32 |
+		OMAP_DSS_COLOR_RGBA32 | OMAP_DSS_COLOR_XRGB15 |
+		OMAP_DSS_COLOR_RGBX24 | OMAP_DSS_COLOR_RGBX12 |
+		OMAP_DSS_COLOR_ARGB16_1555 | OMAP_DSS_COLOR_RGBA16,
+
+	OMAP_DSS_COLOR_VID_OMAP4 =
+		OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_RGBA16 |
+		OMAP_DSS_COLOR_RGBX12 | OMAP_DSS_COLOR_ARGB16_1555 |
+		OMAP_DSS_COLOR_XRGB15 |
+		OMAP_DSS_COLOR_RGB12U | OMAP_DSS_COLOR_ARGB16 |
+		OMAP_DSS_COLOR_RGB16 | OMAP_DSS_COLOR_RGB24U |
+		OMAP_DSS_COLOR_RGB24P | OMAP_DSS_COLOR_YUV2 |
+		OMAP_DSS_COLOR_UYVY | OMAP_DSS_COLOR_ARGB32 |
+		OMAP_DSS_COLOR_RGBA32 | OMAP_DSS_COLOR_RGBX24,
 };
 
 enum omap_lcd_display_type {
@@ -388,6 +433,11 @@ int dsi_vc_set_max_rx_packet_size(enum omap_dsi_index ix,
 		int channel, u16 len);
 int dsi_vc_send_null(enum omap_dsi_index ix, int channel);
 int dsi_vc_send_bta_sync(enum omap_dsi_index ix, int channel);
+int dsi_vc_send_long(enum omap_dsi_index ix, int channel,
+	u8 data_type, u8 *data, u16 len, u8 ecc);
+void dsi_set_stop_mode(bool stop);
+void dsi_videomode_panel_preinit(struct omap_dss_device *dssdev);
+void dsi_videomode_panel_postinit(struct omap_dss_device *dssdev);
 
 /* Board specific data */
 #define PWM2ON			0x03
@@ -399,6 +449,7 @@ int dsi_vc_send_bta_sync(enum omap_dsi_index ix, int channel);
 #define DLP_4430_GPIO_44	44
 #define DLP_4430_GPIO_45	45
 #define DLP_4430_GPIO_59	59
+#define DP_4430_GPIO_59         59
 
 #define PROGRESSIVE		0
 #define INTERLACED		1
@@ -439,6 +490,56 @@ struct omap_video_timings {
 	u16 vfp;	/* Vertical front porch */
 	/* Unit: line clocks */
 	u16 vbp;	/* Vertical back porch */
+};
+
+/**
+ * struct omap_dsi_video_timings - timing values for DSI panels
+ * @hsa: Horizontal sync active - Unit: pixel clocks
+ * @hfp: Horizontal front porch - Unit: pixel clocks
+ * @hbp: Horizontal back porch - Unit: pixel clocks
+ * @vsa: Vertical synch active - Unit: line clocks
+ * @vfp: Vertical front porch - Unit: line clocks
+ * @vbp: Vertical back porch - Unit: line clocks
+ *
+ * Timing values for DSI panels in video mode.
+ */
+struct omap_dsi_video_timings {
+	u16 hsa;
+	u16 hfp;
+	u16 hbp;
+	u16 vsa;
+	u16 vfp;
+	u16 vbp;
+};
+
+/**
+ * struct omap_dsi_hs_mode_timing - timing values for the transition from
+ *				     low-power to high-speed mode
+ * @ths_prepare: Time to drive the data lane to LP-00 state, to prepare for HS
+ *  packet transmission
+ * @ths_prepare_ths_zero: Time to drive the data lane to HS-0 state before the
+ *  synchronous sequence
+ * @ths_trail: Time to drive flipped differential state after last payload data
+ *  bit of a HS transmission burst
+ * @ths_exit: Time to drive data lane to LP-11 state, after HS burst
+ * @tlpx_half: Half of the length of any LPS period
+ * @tclk_trail: Time to drive HS differential state after last payload clock bit
+ *  of a HS transmission burst
+ * @tclk_prepare: Time to drive the CLK lane to LP-00 state, to prepare for HS
+ *  clock transmission
+ * @tclk_zero: Time to drive the CLK lane to HS-0 state before starting clock
+ *
+ * Time in nsec
+ */
+struct omap_dsi_hs_mode_timing {
+	u32 ths_prepare;
+	u32 ths_prepare_ths_zero;
+	u32 ths_trail;
+	u32 ths_exit;
+	u32 tlpx_half;
+	u32 tclk_trail;
+	u32 tclk_prepare;
+	u32 tclk_zero;
 };
 
 /* Weight coef are set as value * 1000 (if coef = 1 it is set to 1000) */
@@ -488,6 +589,7 @@ struct omap_overlay_info {
 	enum device_n_buffer_type field;
 	u16 pic_height;	/* required for interlacing with cropping */
 	bool out_wb; /* true when this overlay only feeds wb pipeline */
+	bool pre_mult_alpha;
 };
 
 struct omap_overlay {
@@ -531,9 +633,6 @@ struct omap_overlay_manager_info {
 	bool trans_enabled;
 
 	bool alpha_enabled;
-	bool cpr_enable;
-	struct omap_dss_color_weight_coef cpr_coefs;
-
 };
 
 struct omap_overlay_manager {
@@ -659,6 +758,10 @@ struct omap_dss_device {
 			u8 data1_pol;
 			u8 data2_lane;
 			u8 data2_pol;
+			u8 data3_lane;
+			u8 data3_pol;
+			u8 data4_lane;
+			u8 data4_pol;
 
 			struct {
 				u16 regn;
@@ -671,6 +774,10 @@ struct omap_dss_device {
 				u16 lck_div;
 				u16 pck_div;
 			} div;
+
+			u8 xfer_mode; /* DSI command or video mode */
+			struct omap_dsi_video_timings vm_timing;
+			struct omap_dsi_hs_mode_timing hs_timing;
 		} dsi;
 
 		struct {
@@ -690,6 +797,7 @@ struct omap_dss_device {
 		struct s3d_disp_info s3d_info;
 		u32 width_in_mm;
 		u32 height_in_mm;
+		enum omap_dsi_data_type data_type;
 	} panel;
 
 	struct {
@@ -750,6 +858,7 @@ struct omap_dss_driver {
 
 	int (*set_update_mode)(struct omap_dss_device *dssdev,
 			enum omap_dss_update_mode);
+	void (*hs_mode_timing)(struct omap_dss_device *dssdev);
 	enum omap_dss_update_mode (*get_update_mode)(
 			struct omap_dss_device *dssdev);
 
@@ -774,8 +883,6 @@ struct omap_dss_driver {
 
 	void (*get_resolution)(struct omap_dss_device *dssdev,
 			u16 *xres, u16 *yres);
-//	void (*get_dimension)(struct omap_dss_device *dssdev,
-//			u32 *width, u32 *height);
 	int (*get_recommended_bpp)(struct omap_dss_device *dssdev);
 
 	int (*check_timings)(struct omap_dss_device *dssdev,
@@ -815,14 +922,20 @@ struct omap_dss_driver {
 	/* 3D only panels should return true always */
 	bool (*get_s3d_enabled)(struct omap_dss_device *dssdev);
 	/* Only used for frame sequential displays*/
-	int (*set_s3d_view)(struct omap_dss_device *dssdev, enum s3d_disp_view view);
+	int (*set_s3d_view)(struct omap_dss_device *dssdev,
+					enum s3d_disp_view view);
 	/*Some displays may accept multiple 3D packing formats (like HDMI)
 	 *hence we add capability to choose the most optimal one given a source
 	 *Returns non-zero if the type was not supported*/
-	int (*set_s3d_disp_type)(struct omap_dss_device *dssdev, struct s3d_disp_info *info);
+	int (*set_s3d_disp_type)(struct omap_dss_device *dssdev,
+					struct s3d_disp_info *info);
 };
 
 struct pico_platform_data {
+	u8 gpio_intr;
+};
+
+struct d2l_platform_data {
 	u8 gpio_intr;
 };
 
@@ -846,7 +959,8 @@ void omap_dss_stop_device(struct omap_dss_device *dssdev);
  * to the notifier function, and the dssdev is passed as the third.
  */
 enum omap_dss_event {
-	OMAP_DSS_SIZE_CHANGE
+	OMAP_DSS_SIZE_CHANGE,
+	OMAP_DSS_OVL_INFO_RESET,
 	/* possibly add additional events, like hot-plug connect/disconnect */
 };
 
@@ -876,6 +990,15 @@ int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev);
 bool dispc_go_busy(enum omap_channel channel);
 void dispc_go(enum omap_channel channel);
 bool dispc_is_vsync_fake(void);
+int dispc_scaling_decision(u16 width, u16 height,
+		u16 out_width, u16 out_height,
+		enum omap_plane plane,
+		enum omap_color_mode color_mode,
+		enum omap_channel channel, u8 rotation,
+		u16 min_x_decim, u16 max_x_decim,
+		u16 min_y_decim, u16 max_y_decim,
+		u16 *x_decim, u16 *y_decim, bool *three_tap);
+void dispc_enable_channel(enum omap_channel channel, bool enable);
 typedef void (*omap_dispc_isr_t) (void *arg, u32 mask);
 int omap_dispc_register_isr(omap_dispc_isr_t isr, void *arg, u32 mask);
 int omap_dispc_unregister_isr(omap_dispc_isr_t isr, void *arg, u32 mask);
@@ -927,6 +1050,19 @@ int omap_rfbi_update(struct omap_dss_device *dssdev,
 			void (*callback)(void *), void *data);
 
 void change_base_address(int id, u32 p_uv_addr);
+#ifdef CONFIG_OMAP2_DSS_HDMI
 bool is_hdmi_interlaced(void);
+void get_hdmi_mode_code(struct omap_video_timings *timing,
+			int *mode, int *code);
+#else
+static inline bool is_hdmi_interlaced(void)
+{
+	return 0;
+}
+static inline void get_hdmi_mode_code(struct omap_video_timings *timing,
+				int *mode, int *code)
+{
+}
+#endif
 
 #endif

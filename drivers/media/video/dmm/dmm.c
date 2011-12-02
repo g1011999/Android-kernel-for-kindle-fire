@@ -16,7 +16,6 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/cdev.h>            /* struct cdev */
 #include <linux/kdev_t.h>          /* MKDEV() */
 #include <linux/fs.h>              /* register_chrdev_region() */
 #include <linux/device.h>          /* struct class */
@@ -41,24 +40,29 @@
 #define DEBUG(x, y)
 #endif
 
-static s32 dmm_major;
-static s32 dmm_minor;
+static struct omap_dmm_platform_data *device_data;
 
-struct dmm_dev {
-	struct cdev cdev;
-};
+static int dmm_probe(struct platform_device *pdev)
+{
+	if (!pdev || !pdev->dev.platform_data) {
+		printk(KERN_ERR "dmm: invalid platform data\n");
+		return -EINVAL;
+	}
 
-static struct dmm_dev *dmm_device;
-static struct class *dmmdev_class;
+	device_data = pdev->dev.platform_data;
+
+	writel(0x88888888, device_data->base + DMM_TILER_OR__0);
+	writel(0x88888888, device_data->base + DMM_TILER_OR__1);
+
+	return 0;
+}
 
 static struct platform_driver dmm_driver_ldm = {
+	.probe = dmm_probe,
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = "dmm",
 	},
-	.probe = NULL,
-	.shutdown = NULL,
-	.remove = NULL,
 };
 
 s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
@@ -211,21 +215,6 @@ s32 dmm_pat_refill(struct dmm *dmm, struct pat *pd, enum pat_mode mode)
 }
 EXPORT_SYMBOL(dmm_pat_refill);
 
-static s32 dmm_open(struct inode *ip, struct file *filp)
-{
-	return 0;
-}
-
-static s32 dmm_release(struct inode *ip, struct file *filp)
-{
-	return 0;
-}
-
-static const struct file_operations dmm_fops = {
-	.open    = dmm_open,
-	.release = dmm_release,
-};
-
 struct dmm *dmm_pat_init(u32 id)
 {
 	u32 base = 0;
@@ -276,60 +265,15 @@ EXPORT_SYMBOL(dmm_pat_release);
 
 static s32 __init dmm_init(void)
 {
-	dev_t dev  = 0;
-	s32 r = -1;
-	struct device *device = NULL;
-
 	if (!cpu_is_omap44xx())
 		return 0;
 
-	if (dmm_major) {
-		dev = MKDEV(dmm_major, dmm_minor);
-		r = register_chrdev_region(dev, 1, "dmm");
-	} else {
-		r = alloc_chrdev_region(&dev, dmm_minor, 1, "dmm");
-		dmm_major = MAJOR(dev);
-	}
-
-	dmm_device = kmalloc(sizeof(*dmm_device), GFP_KERNEL);
-	if (!dmm_device) {
-		unregister_chrdev_region(dev, 1);
-		return -ENOMEM;
-	}
-	memset(dmm_device, 0x0, sizeof(struct dmm_dev));
-
-	cdev_init(&dmm_device->cdev, &dmm_fops);
-	dmm_device->cdev.owner = THIS_MODULE;
-	dmm_device->cdev.ops = &dmm_fops;
-
-	r = cdev_add(&dmm_device->cdev, dev, 1);
-	if (r)
-		printk(KERN_ERR "cdev_add():failed\n");
-
-	dmmdev_class = class_create(THIS_MODULE, "dmm");
-
-	if (IS_ERR(dmmdev_class)) {
-		printk(KERN_ERR "class_create():failed\n");
-		goto EXIT;
-	}
-
-	device = device_create(dmmdev_class, NULL, dev, NULL, "dmm");
-	if (device == NULL)
-		printk(KERN_ERR "device_create() fail\n");
-
-	r = platform_driver_register(&dmm_driver_ldm);
-
-EXIT:
-	return r;
+	return platform_driver_register(&dmm_driver_ldm);
 }
 
 static void __exit dmm_exit(void)
 {
 	platform_driver_unregister(&dmm_driver_ldm);
-	cdev_del(&dmm_device->cdev);
-	kfree(dmm_device);
-	device_destroy(dmmdev_class, MKDEV(dmm_major, dmm_minor));
-	class_destroy(dmmdev_class);
 }
 
 MODULE_LICENSE("GPL v2");

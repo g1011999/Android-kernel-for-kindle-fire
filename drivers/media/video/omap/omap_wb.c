@@ -166,7 +166,7 @@ int omap_wb_try_format(enum omap_color_mode *color_mode,
 		bpp = RGB24_BPP;
 		break;
 	case V4L2_PIX_FMT_BGR32:
-		*color_mode = OMAP_DSS_COLOR_RGBX32;
+		*color_mode = OMAP_DSS_COLOR_RGBX24;
 		bpp = RGB32_BPP;
 	case V4L2_PIX_FMT_YUYV:
 		*color_mode = OMAP_DSS_COLOR_YUV2;

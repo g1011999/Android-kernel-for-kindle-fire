@@ -301,7 +301,7 @@ static enum omap_color_mode v4l2_pix_to_dss_color(struct v4l2_pix_format *pix)
 	case V4L2_PIX_FMT_RGB32:
 		return OMAP_DSS_COLOR_ARGB32;
 	case V4L2_PIX_FMT_BGR32:
-		return OMAP_DSS_COLOR_RGBX32;
+		return OMAP_DSS_COLOR_RGBX24;
 
 	default:
 		return -EINVAL;
@@ -3387,7 +3387,7 @@ static int __init s3d_ovl_dev_init(struct s3d_ovl_device *dev)
 	dev->supported_modes = OMAP_DSS_COLOR_NV12 | OMAP_DSS_COLOR_YUV2 |
 	    OMAP_DSS_COLOR_UYVY | OMAP_DSS_COLOR_RGB16 |
 	    OMAP_DSS_COLOR_RGB24P | OMAP_DSS_COLOR_ARGB32 |
-	    OMAP_DSS_COLOR_RGBX32;
+	    OMAP_DSS_COLOR_RGBX24;
 
 	dev->in_q.bpp = RGB565_BPP;
 	dev->in_q.width = QQVGA_WIDTH;

@@ -794,10 +794,6 @@ static void dsi_vc_enable_bta_irq(enum omap_dsi_index ix,
 {
 	u32 l;
 
-	/* we don't need bta... TODO: a best way to validate this */
-	if (machine_is_omap_tabletblaze())
-		return;
-
 	dsi_write_reg(ix, DSI_VC_IRQSTATUS(channel), DSI_VC_IRQ_BTA);
 
 	l = dsi_read_reg(ix, DSI_VC_IRQENABLE(channel));
@@ -809,10 +805,6 @@ static void dsi_vc_disable_bta_irq(enum omap_dsi_index ix,
 	int channel)
 {
 	u32 l;
-
-	/* we don't need bta... TODO: a best way to validate this */
-	if (machine_is_omap_tabletblaze())
-		return;
 
 	l = dsi_read_reg(ix, DSI_VC_IRQENABLE(channel));
 	l &= ~DSI_VC_IRQ_BTA;
@@ -1714,13 +1706,6 @@ static void dsi_complexio_config(struct omap_dss_device *dssdev)
 	r = FLD_MOD(r, data2_lane, 10, 8);
 	r = FLD_MOD(r, data2_pol, 11, 11);
 
-	if (machine_is_omap_tabletblaze()) {
-		r = FLD_MOD(r, data3_lane, 14, 12);
-		r = FLD_MOD(r, data3_pol, 15, 15);
-		r = FLD_MOD(r, data4_lane, 18, 16);
-		r = FLD_MOD(r, data4_pol, 19, 19);
-	}
-
 	dsi_write_reg(ix, DSI_COMPLEXIO_CFG1, r);
 
 	/* The configuration of the DSI complex I/O (number of data lanes,
@@ -2289,10 +2274,6 @@ static int dsi_vc_send_bta(enum omap_dsi_index ix, int channel)
 {
 	struct dsi_struct *p_dsi = (ix == DSI1) ? &dsi1 : &dsi2;
 
-	/* we don't need bta... TODO: a best way to validate this */
-	if (machine_is_omap_tabletblaze())
-		return 0;
-
 	if (p_dsi->debug_write || p_dsi->debug_read)
 		DSSDBG("dsi_vc_send_bta %d\n", channel);
 
@@ -2314,10 +2295,6 @@ int dsi_vc_send_bta_sync(enum omap_dsi_index ix, int channel)
 	int r = 0;
 	u32 err;
 	struct dsi_struct *p_dsi = (ix == DSI1) ? &dsi1 : &dsi2;
-
-	/* we don't need bta... TODO: a best way to validate this */
-	if (machine_is_omap_tabletblaze())
-		return 0;
 
 	INIT_COMPLETION(p_dsi->bta_completion);
 
@@ -3627,7 +3604,7 @@ static int dsi_display_init_dispc(struct omap_dss_device *dssdev)
 			.y_res		= 480,
 		};
 
-		if (machine_is_omap_tabletblaze()) {
+		if (false) {
 			/* just set the values on panel-d2l,
 			 * no need to hardcode them here anymore. */
 			dispc_set_lcd_timings(dssdev->channel,

@@ -35,6 +35,8 @@
 #define TILIOC_RBUF  _IOWR('z', 106, u32)
 #define TILIOC_URBUF _IOWR('z', 107, u32)
 #define TILIOC_QUERY_BLK _IOWR('z', 108, u32)
+#define TILIOC_WAIT _IOWR('z', 109, u32)
+
 
 enum tiler_fmt {
 	TILFMT_MIN     = -1,
@@ -232,6 +234,13 @@ void tiler_alloc_packed(s32 *count, enum tiler_fmt fmt, u32 width, u32 height,
 void tiler_alloc_packed_nv12(s32 *count, u32 width, u32 height, void **y_sysptr,
 				void **uv_sysptr, void **y_allocptr,
 				void **uv_allocptr, s32 aligned);
+
+enum buf_state {
+	TILBUF_FREE = 0,
+	TILBUF_BUSY = 1
+};
+
+s32 tiler_set_buf_state(u32 ssptr, enum buf_state state);
 
 #endif
 

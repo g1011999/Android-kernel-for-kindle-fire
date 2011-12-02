@@ -67,6 +67,10 @@ struct dmm_mem {
 	struct mem used_list;
 	struct mutex mtx;
 	struct dmm *dmm;
+	u32 *dmac_va;		/* coherent memory */
+	u32 dmac_pa;		/* phys.addr of coherent memory */
+	struct page *dummy_pg;	/* dummy page */
+	u32 dummy_pa;		/* phys.addr of dummy page */
 };
 
 static void dmm_free_fast_list(struct fast *fast)
@@ -139,6 +143,8 @@ static void dmm_free_page_stack(struct mem *mem)
 static void tmm_pat_deinit(struct tmm *tmm)
 {
 	struct dmm_mem *pvt = (struct dmm_mem *) tmm->pvt;
+
+	__free_page(pvt->dummy_pg);
 
 	mutex_lock(&pvt->mtx);
 	dmm_free_fast_list(&pvt->fast_list);
@@ -288,7 +294,20 @@ static s32 tmm_pat_map(struct tmm *tmm, struct pat_area area, u32 page_pa)
 	return dmm_pat_refill(pvt->dmm, &pat_desc, MANUAL);
 }
 
-struct tmm *tmm_pat_init(u32 pat_id)
+static void tmm_pat_clear(struct tmm *tmm, struct pat_area area)
+{
+	u16 w = (u8) area.x1 - (u8) area.x0;
+	u16 h = (u8) area.y1 - (u8) area.y0;
+	u16 i = (w + 1) * (h + 1);
+	struct dmm_mem *pvt = (struct dmm_mem *) tmm->pvt;
+
+	while (i--)
+		pvt->dmac_va[i] = pvt->dummy_pa;
+
+	tmm_pat_map(tmm, area, pvt->dmac_pa);
+}
+
+struct tmm *tmm_pat_init(u32 pat_id, u32 *dmac_va, u32 dmac_pa)
 {
 	struct tmm *tmm = NULL;
 	struct dmm_mem *pvt = NULL;
@@ -298,9 +317,15 @@ struct tmm *tmm_pat_init(u32 pat_id)
 		tmm = kmalloc(sizeof(*tmm), GFP_KERNEL);
 	if (tmm)
 		pvt = kmalloc(sizeof(*pvt), GFP_KERNEL);
-	if (pvt) {
+	if (pvt)
+		pvt->dummy_pg = alloc_page(GFP_KERNEL | GFP_DMA);
+	if (pvt->dummy_pg) {
 		/* private data */
 		pvt->dmm = dmm;
+		pvt->dmac_pa = dmac_pa;
+		pvt->dmac_va = dmac_va;
+		pvt->dummy_pa = page_to_phys(pvt->dummy_pg);
+
 		INIT_LIST_HEAD(&pvt->free_list.list);
 		INIT_LIST_HEAD(&pvt->used_list.list);
 		INIT_LIST_HEAD(&pvt->fast_list.list);
@@ -317,7 +342,7 @@ struct tmm *tmm_pat_init(u32 pat_id)
 		tmm->get = tmm_pat_get_pages;
 		tmm->free = tmm_pat_free_pages;
 		tmm->map = tmm_pat_map;
-		tmm->clear = NULL;   /* not yet supported */
+		tmm->clear = tmm_pat_clear;
 
 		return tmm;
 	}

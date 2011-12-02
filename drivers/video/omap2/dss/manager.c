@@ -1091,7 +1091,8 @@ static int configure_dispc(void)
 		if (!mgr_go[i])
 			continue;
 
-		if (machine_is_omap_tabletblaze()) {
+//		if (machine_is_omap_tabletblaze()) {
+		if (false) {
 			/* We need this to be called for manager changes
 			 * to be applied on hardware. Since in DSI Video Mode
 			 * we don't disable->re-enable lcd on each frame,
