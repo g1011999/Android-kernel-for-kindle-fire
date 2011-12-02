@@ -197,6 +197,11 @@ obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o \
 					   omap_phy_internal.o \
 					   hsmmc.o
 
+obj-$(CONFIG_MACH_OMAP_4430_KC1)	+= board-4430kc1.o \
+					   board-kc1-reboot.o \
+					   omap_phy_internal.o \
+					   hsmmc.o 
+
 ifeq ($(CONFIG_ARCH_OMAP4),y)
 obj-$(CONFIG_TIWLAN_SDIO)		+= board-4430sdp-wifi.o
 endif

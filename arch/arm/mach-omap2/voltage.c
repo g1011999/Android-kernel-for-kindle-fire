@@ -1111,37 +1111,42 @@ static void __init omap4_init_voltagecontroller(void)
 	 * used.
 	 */
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_CORE_RET_SLEEP_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x0 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x0 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
 		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
 		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_IVA_RET_SLEEP_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
-		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
-		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
+		(0x0 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x0 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x1D << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+		(0x1D << OMAP4430_RAMP_UP_COUNT_SHIFT));
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_MPU_RET_SLEEP_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
-		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
-		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
+		(0x0 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x0 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x1D << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+		(0x1D << OMAP4430_RAMP_UP_COUNT_SHIFT));
 
 	/* setup the VOLTSETUP* registers for OFF */
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_CORE_OFF_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
-		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
-		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
+		(0x2 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x2 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x8 << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+		(0x26 << OMAP4430_RAMP_UP_COUNT_SHIFT));
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_IVA_OFF_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
-		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
-		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
+		(0x2 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x2 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x8 << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+		(0x26 << OMAP4430_RAMP_UP_COUNT_SHIFT));
 	voltage_write_reg(OMAP4_PRM_VOLTSETUP_MPU_OFF_OFFSET,
-		(0x3 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
-		(0x3 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
-		(0xF << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
-		(0xF << OMAP4430_RAMP_UP_COUNT_SHIFT));
+		(0x2 << OMAP4430_RAMP_DOWN_PRESCAL_SHIFT) |
+		(0x2 << OMAP4430_RAMP_UP_PRESCAL_SHIFT) |
+		(0x8 << OMAP4430_RAMP_DOWN_COUNT_SHIFT) |
+		(0x26 << OMAP4430_RAMP_UP_COUNT_SHIFT));
+
+	/* setup the VOLTSETUP* registers for WARM RESET */
+	voltage_write_reg(OMAP4_PRM_VOLTSETUP_WARMRESET_OFFSET,
+		(0x1D << OMAP4430_STABLE_COUNT_SHIFT) |
+		(0x3 << OMAP4430_STABLE_PRESCAL_SHIFT));
 
 	on_cmd = vdd_info[impu].pmic->onforce_cmd(
 		vdd_info[impu].pmic->uv_to_vsel(vc_config.vdd0_on));
@@ -1184,6 +1189,7 @@ static void __init omap4_init_voltagecontroller(void)
 			(onlp_cmd << OMAP4430_ONLP_SHIFT) |
 			(ret_cmd << OMAP4430_RET_SHIFT) |
 			(off_cmd << OMAP4430_OFF_SHIFT));
+
 }
 
 /* Sets up all the VDD related info for OMAP4 */
@@ -2644,7 +2650,7 @@ static int __init omap_voltage_init(void)
 			omap_ctrl_writel(0x0400040f,
 			OMAP4_CTRL_MODULE_CORE_LDOSRAM_IVA_VOLTAGE_CTRL);
 			/* write value of 0x0 to VDAC as per trim recomendation */
-			omap_ctrl_writel(0x000001c0,
+			omap4_ctrl_pad_writel(0x000001c0,
 			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_1);
 		} else {
 			/*
@@ -2669,7 +2675,7 @@ static int __init omap_voltage_init(void)
 	 * Smart IO override efuse with P:16/N:16 and P:0/N:0 respectively
 	 */
 	if (cpu_is_omap44xx())
-		omap_ctrl_writel(0x00084000,
+		omap4_ctrl_pad_writel(0x00084000,
 			OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_EFUSE_2);
 
 

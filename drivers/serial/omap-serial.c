@@ -1498,12 +1498,16 @@ int omap_uart_cts_wakeup(int uart_no, int state)
 
 		if (omap_up_info->cts_padconf & 0x2) {
 			omap_up_info->cts_padvalue = 0xFFFF0000 & v;
-			v |= (((OMAP_WAKEUP_EN | OMAP_OFF_PULL_EN |
+//KC1 SOC off-mode
+//			v |= (((OMAP_WAKEUP_EN | OMAP_OFF_PULL_EN |
+			v |= (((OMAP_OFF_PULL_EN |
 				OMAP_OFF_PULL_UP | OMAP_OFFOUT_EN |
 				OMAP_OFF_EN | OMAP_PULL_UP)) << 16);
 		} else {
 			omap_up_info->cts_padvalue = 0x0000FFFF & v;
-			v |= ((OMAP_WAKEUP_EN | OMAP_OFF_PULL_EN |
+//KC1 SOC off-mode
+//			v |= ((OMAP_WAKEUP_EN | OMAP_OFF_PULL_EN |
+			v |= ((OMAP_OFF_PULL_EN |
 				OMAP_OFF_PULL_UP | OMAP_OFFOUT_EN |
 				OMAP_OFF_EN | OMAP_PULL_UP));
 		}
